@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback } from 'react';
 import { Product } from '@/types';
+import { storageGetItem, storageSetItem } from '@/utils/storage';
 
 const PRODUCTS_KEY = 'products_storage';
 
@@ -13,14 +13,14 @@ export const [ProductProvider, useProducts] = createContextHook(() => {
   const productsQuery = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(PRODUCTS_KEY);
+      const stored = await storageGetItem(PRODUCTS_KEY);
       return stored ? JSON.parse(stored) : [];
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (updatedProducts: Product[]) => {
-      await AsyncStorage.setItem(PRODUCTS_KEY, JSON.stringify(updatedProducts));
+      await storageSetItem(PRODUCTS_KEY, JSON.stringify(updatedProducts));
       return updatedProducts;
     },
     onSuccess: () => {

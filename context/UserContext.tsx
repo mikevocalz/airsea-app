@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback } from 'react';
 import { UserProfile } from '@/types';
+import { storageGetItem, storageSetItem } from '@/utils/storage';
 
 const USER_KEY = 'user_profile_storage';
 
@@ -23,14 +23,14 @@ export const [UserProvider, useUser] = createContextHook(() => {
   const userQuery = useQuery({
     queryKey: ['user'],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(USER_KEY);
+      const stored = await storageGetItem(USER_KEY);
       return stored ? JSON.parse(stored) : defaultUser;
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (updatedUser: UserProfile) => {
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+      await storageSetItem(USER_KEY, JSON.stringify(updatedUser));
       return updatedUser;
     },
     onSuccess: () => {

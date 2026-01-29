@@ -25,11 +25,16 @@ import {
 import Colors from '@/constants/colors';
 import { useProducts } from '@/context/ProductContext';
 import { Product } from '@/types';
+import { mergeVideoClips } from '@/utils/videoMerge';
 
 export default function AddProductScreen() {
   const router = useRouter();
   const { addProduct } = useProducts();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeStatus, setMergeStatus] = useState<string | null>(null);
+  const [mergedVideoUri, setMergedVideoUri] = useState<string | null>(null);
+  const [mergeProgress, setMergeProgress] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -118,6 +123,9 @@ export default function AddProductScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
+      setMergedVideoUri(null);
+      setMergeStatus(null);
+      setMergeProgress(null);
       setForm({ ...form, videos: [...form.videos, result.assets[0].uri] });
     }
   };
@@ -142,6 +150,9 @@ export default function AddProductScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
+      setMergedVideoUri(null);
+      setMergeStatus(null);
+      setMergeProgress(null);
       setForm({ ...form, videos: [...form.videos, result.assets[0].uri] });
     }
   };
@@ -149,10 +160,39 @@ export default function AddProductScreen() {
   const removeVideo = (index: number) => {
     const updated = [...form.videos];
     updated.splice(index, 1);
+    setMergedVideoUri(null);
+    setMergeStatus(null);
+    setMergeProgress(null);
     setForm({ ...form, videos: updated });
   };
 
-  const handleSubmit = () => {
+  const mergeClips = async () => {
+    if (form.videos.length < 2) {
+      return null;
+    }
+
+    setIsMerging(true);
+    setMergeStatus(null);
+    setMergeProgress(0);
+    try {
+      const mergedUri = await mergeVideoClips(form.videos, (progress) => {
+        setMergeProgress(progress);
+      });
+      setMergedVideoUri(mergedUri);
+      setMergeProgress(1);
+      setMergeStatus('Merged into one product video.');
+      return mergedUri;
+    } catch (error) {
+      console.error('Video merge failed', error);
+      setMergeStatus('Merge failed. Please try again.');
+      Alert.alert('Merge Failed', 'Unable to merge clips. Please try again.');
+      return null;
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!form.name.trim()) {
       Alert.alert('Required', 'Please enter a product name');
       return;
@@ -169,6 +209,26 @@ export default function AddProductScreen() {
     setIsSubmitting(true);
 
     const productId = generateId();
+    let videoClip: string | null = null;
+
+    if (form.videos.length === 1) {
+      videoClip = form.videos[0];
+    }
+
+    if (form.videos.length > 1) {
+      if (isMerging) {
+        setIsSubmitting(false);
+        Alert.alert('Please Wait', 'Video merge is in progress.');
+        return;
+      }
+      const merged = mergedVideoUri ?? (await mergeClips());
+      if (!merged) {
+        setIsSubmitting(false);
+        return;
+      }
+      videoClip = merged;
+    }
+
     const newProduct: Product = {
       id: productId,
       name: form.name.trim(),
@@ -177,7 +237,7 @@ export default function AddProductScreen() {
       price: form.price.trim(),
       mainImage: form.mainImage,
       productImages: form.productImages,
-      videoClip: form.videos.length > 0 ? form.videos[0] : null,
+      videoClip,
       createdAt: new Date().toISOString(),
       qrCode: generateQRCode(productId),
     };
@@ -320,6 +380,35 @@ export default function AddProductScreen() {
               </View>
             ))}
           </View>
+          {form.videos.length > 1 && (
+            <View style={styles.mergeSection}>
+              <TouchableOpacity
+                style={[styles.mergeButton, isMerging && styles.mergeButtonDisabled]}
+                onPress={mergeClips}
+                disabled={isMerging}
+              >
+                {isMerging ? (
+                  <ActivityIndicator color={Colors.background} />
+                ) : (
+                  <>
+                    <Video color={Colors.background} size={18} />
+                    <Text style={styles.mergeButtonText}>Merge clips</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {mergeProgress !== null && (
+                <View style={styles.mergeProgress}>
+                  <View style={styles.mergeProgressTrack}>
+                    <View style={[styles.mergeProgressFill, { width: `${mergeProgress * 100}%` }]} />
+                  </View>
+                  <Text style={styles.mergeProgressText}>
+                    {isMerging ? `Processing ${Math.round(mergeProgress * 100)}%` : 'Processing complete'}
+                  </Text>
+                </View>
+              )}
+              {mergeStatus && <Text style={styles.mergeStatus}>{mergeStatus}</Text>}
+            </View>
+          )}
           {form.videos.length < 4 && (
             <View style={styles.videoActions}>
               <TouchableOpacity style={styles.videoActionButton} onPress={recordVideo}>
@@ -542,6 +631,48 @@ const styles = StyleSheet.create({
   videoActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  mergeSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  mergeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  mergeButtonDisabled: {
+    opacity: 0.7,
+  },
+  mergeButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.background,
+  },
+  mergeProgress: {
+    gap: 6,
+  },
+  mergeProgressTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
+  },
+  mergeProgressFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+  },
+  mergeProgressText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  mergeStatus: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   videoActionButton: {
     flex: 1,

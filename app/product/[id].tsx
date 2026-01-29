@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   FileText,
   QrCode,
@@ -33,6 +34,12 @@ export default function ProductDetailScreen() {
   const { getProduct, deleteProduct } = useProducts();
 
   const product = getProduct(id || '');
+  const videoPlayer = useVideoPlayer(
+    product?.videoClip ? { uri: product.videoClip } : undefined,
+    (player) => {
+      player.loop = false;
+    }
+  );
 
   if (!product) {
     return (
@@ -132,16 +139,18 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {product.videoClip && (
+          {product.videoClip && videoPlayer && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Video color={Colors.accent} size={18} />
                 <Text style={styles.sectionTitle}>Video Clip</Text>
               </View>
-              <View style={styles.videoPlaceholder}>
-                <Video color={Colors.textMuted} size={32} />
-                <Text style={styles.videoPlaceholderText}>Video available</Text>
-              </View>
+              <VideoView
+                player={videoPlayer}
+                style={styles.videoPlayer}
+                nativeControls
+                allowsFullscreen
+              />
             </View>
           )}
 
@@ -320,18 +329,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: Colors.surface,
   },
-  videoPlaceholder: {
-    backgroundColor: Colors.surface,
+  videoPlayer: {
+    width: width - 40,
+    height: (width - 40) * 0.5625,
     borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  videoPlaceholderText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginTop: 8,
+    backgroundColor: Colors.surface,
   },
   qrContainer: {
     alignItems: 'center',
