@@ -65,6 +65,8 @@ export default function InventoryTable({ items, showQRCodes = true }: InventoryT
                     size={48}
                     color={Colors.text}
                     backgroundColor={Colors.background}
+                    showCopyButton
+                    copyLabel="Copy"
                   />
                 ) : (
                   <Text style={styles.noQrText}>-</Text>

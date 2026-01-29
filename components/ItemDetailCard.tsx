@@ -91,6 +91,8 @@ export default function ItemDetailCard({ item, onClose }: ItemDetailCardProps) {
                 size={100}
                 color={Colors.text}
                 backgroundColor="#FFFFFF"
+                showCopyButton
+                copyLabel="Copy Link"
               />
             </View>
             <Text style={styles.qrLabel}>Scan for handling video</Text>
