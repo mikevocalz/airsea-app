@@ -16,6 +16,18 @@ export const MUX_SOURCES: MuxVideoSource[] = [
 
 export const DEFAULT_VIDEO_ID = MUX_SOURCES[0].playbackId;
 
+// Curated primary navigation — 6 services surfaced in the spatial experience.
+// The full catalog is accessible via /solutions. Editorial restraint:
+// fewer, more confident choices over an exhaustive menu.
+export const PRIMARY_NAV_IDS = [
+  "white-glove",
+  "fine-art",
+  "storage",
+  "households",
+  "imports-exports",
+  "quote",
+] as const;
+
 // ─── Service Sections ─────────────────────────────────────────────────────────
 
 export const AIRSEA_SECTIONS: AirSeaSection[] = [

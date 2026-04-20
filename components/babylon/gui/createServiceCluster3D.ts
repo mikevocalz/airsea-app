@@ -4,22 +4,36 @@ import type { SectionId, AirSeaSection } from "@/types/experience";
 import { BRAND, hexToFloat3 } from "@/lib/brand/tokens";
 
 /**
- * ─── Navigation Bar — 5×2 flat grid, centered on gaze axis ──────────────────
+ * ─── Navigation Strip — Vertical, Subordinate, Right Wall Zone ───────────────
  *
- * Position: (0, 0.88, -3.5)
- *   Center of gaze axis — no forced lateral eye movement.
- *   Y=0.88: natural downward glance from eye height (1.6) — −11° vertical.
- *   Z=−3.5: "interact" depth band — closer than the reading plane but not
- *           inside personal space.
+ * Design principle: navigation is a catalog, not a dashboard.
+ * It should read like a table of contents at the edge of a printed brief —
+ * present, legible, but never competing with the primary reading surface.
  *
- * Layout: PlanePanel columns=5, producing a 5×2 flat grid for 10 sections.
- * Flat plane rather than sphere arc eliminates radial button misalignment and
- * makes button labels read consistently at every position.
+ * Why vertical StackPanel vs flat grid:
+ *   A vertical strip on the right side mirrors physical wayfinding (a wall-
+ *   mounted service directory). The flat 5×2 grid centered below the slate
+ *   created a kiosk/vending-machine composition. Vertical strips are
+ *   architectural; grids are dashboards.
  *
- * Interaction states:
- *   Resting:  dark charcoal panel, cool-white label
- *   Hover:    brand teal tint — present, not loud
- *   Selected: brand teal fill at low alpha — "chosen and confirmed"
+ * Why right side (X=+2.8) vs center:
+ *   Separates navigation laterally from content. The slate lives LEFT, navigation
+ *   lives RIGHT. The user's gaze moves: content (left) ↔ navigation (right).
+ *   This is how premium wayfinding works in physical architecture.
+ *
+ * Why 6 services vs 10:
+ *   Editorial restraint. 10 equal-weight buttons signal "we couldn't choose."
+ *   6 primary services signal "these are what matter most." The full catalog
+ *   is available at /solutions. Premium experiences curate, not enumerate.
+ *
+ * ─── Spatial Placement ────────────────────────────────────────────────────────
+ *
+ * Position: (2.8, 1.5, -5.4)
+ *   X=+2.8: Right wall zone — +26° from gaze axis. Clearly peripheral,
+ *            clearly purposeful. Reaches without straining.
+ *   Y=1.5:  Slightly below slate center (1.65) — navigation is subordinate.
+ *   Z=-5.4: Same depth band as slate (Z=-5.0). Laterally separated, not
+ *            depth-separated — they're peers spatially, not layers.
  */
 
 export interface ServiceCluster {
@@ -34,35 +48,37 @@ export async function createServiceCluster3D(
   sections: AirSeaSection[],
   onSelect: (id: SectionId) => void
 ): Promise<ServiceCluster> {
-  const { PlanePanel } = await import("@babylonjs/gui/3D/controls/planePanel");
+  const { StackPanel3D } = await import("@babylonjs/gui/3D/controls/stackPanel3D");
   const { HolographicButton } = await import("@babylonjs/gui/3D/controls/holographicButton");
   const { Vector3 } = await import("@babylonjs/core/Maths/math.vector");
   const { Color3 } = await import("@babylonjs/core/Maths/math.color");
 
   const [tr, tg, tb] = hexToFloat3(BRAND.teal);
   const [pr, pg, pb] = hexToFloat3(BRAND.panel);
+  const [prr, prg, prb] = hexToFloat3(BRAND.panelRaised);
 
-  const panel = new PlanePanel("navBar");
-  panel.columns = 5;
-  panel.margin = 0.015;
+  // Vertical strip — StackPanel3D(true) = vertical
+  const stack = new StackPanel3D(true);
+  stack.margin = 0.008;
 
-  manager.addControl(panel);
-  panel.position = new Vector3(0, 0.88, -3.5);
+  manager.addControl(stack);
+  stack.position = new Vector3(2.8, 1.5, -5.4);
 
   let currentActiveId: SectionId = sections[0].id;
   const buttonMap = new Map<string, InstanceType<typeof HolographicButton>>();
 
   for (const section of sections) {
     const btn = new HolographicButton(`btn_${section.id}`);
-    btn.scaling = new Vector3(0.26, 0.19, 0.19);
+    // Narrow and wide — reads as a label strip, not a button grid
+    btn.scaling = new Vector3(0.36, 0.14, 0.14);
     btn.text = section.label;
 
     btn.pointerEnterAnimation = () => {
       if (btn.backMaterial) {
         btn.backMaterial.albedoColor = new Color3(
-          pr + (tr - pr) * 0.2,
-          pg + (tg - pg) * 0.2,
-          pb + (tb - pb) * 0.2
+          prr + (tr - prr) * 0.25,
+          prg + (tg - prg) * 0.25,
+          prb + (tb - prb) * 0.25
         );
       }
     };
@@ -70,7 +86,7 @@ export async function createServiceCluster3D(
     btn.pointerOutAnimation = () => {
       if (btn.backMaterial) {
         if (currentActiveId === section.id) {
-          btn.backMaterial.albedoColor = new Color3(tr * 0.22, tg * 0.22, tb * 0.22);
+          btn.backMaterial.albedoColor = new Color3(tr * 0.2, tg * 0.2, tb * 0.2);
         } else {
           btn.backMaterial.albedoColor = new Color3(pr, pg, pb);
         }
@@ -78,7 +94,7 @@ export async function createServiceCluster3D(
     };
 
     btn.onPointerClickObservable.add(() => onSelect(section.id));
-    panel.addControl(btn);
+    stack.addControl(btn);
     buttonMap.set(section.id, btn);
   }
 
@@ -88,7 +104,7 @@ export async function createServiceCluster3D(
       if (btn.backMaterial) {
         btn.backMaterial.albedoColor =
           sectionId === id
-            ? new Color3(tr * 0.25, tg * 0.25, tb * 0.25)
+            ? new Color3(tr * 0.2, tg * 0.2, tb * 0.2)
             : new Color3(pr, pg, pb);
       }
     }
@@ -99,13 +115,9 @@ export async function createServiceCluster3D(
   return {
     setActiveSection,
     setVisible(visible) {
-      panel.isVisible = visible;
-      for (const btn of buttonMap.values()) {
-        btn.isVisible = visible;
-      }
+      stack.isVisible = visible;
+      for (const btn of buttonMap.values()) btn.isVisible = visible;
     },
-    dispose() {
-      panel.dispose();
-    },
+    dispose() { stack.dispose(); },
   };
 }

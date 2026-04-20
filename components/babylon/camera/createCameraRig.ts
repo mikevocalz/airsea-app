@@ -3,76 +3,73 @@ import type { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import type { Vector3 } from "@babylonjs/core/Maths/math.vector";
 
 /**
- * ─── Camera Rig — XR-safe gaze-only interaction ───────────────────────────────
+ * ─── Camera Rig — Cinematic, XR-safe ─────────────────────────────────────────
  *
- * Camera is STATIONARY at eye height (Y=1.6, origin).
- * It never translates — only its TARGET (gaze direction) animates.
+ * Camera sits stationary at eye height (Y=1.6, origin).
+ * Only the gaze TARGET ever animates — never the position.
  *
- * Why no position animation:
- *   Moving the camera during interaction is a primary cause of XR discomfort
- *   (vection mismatch). Vestibular signals tell the user they're still; optical
- *   flow says they're moving. Even small position drifts cause nausea.
- *   Section changes animate ONLY the gaze target — equivalent to moving your
- *   eyes, not your body.
+ * Position-animation in XR causes vection mismatch and nausea. Moving only
+ * the gaze direction is equivalent to turning your head — zero vestibular cost.
  *
- * Spatial axes (camera at origin, looking −Z):
- *   Z=−2.6  "reach"    → transport controls
- *   Z=−3.5  "interact" → navigation bar
- *   Z=−4.2  "read"     → HolographicSlate (primary gaze target)
- *   Z=−6.5  "ambient"  → logo plaque
+ * Initial gaze: toward the HolographicSlate at (-1.4, 1.65, -5.0).
+ * Pointing slightly left-of-center mirrors how you would naturally look at a
+ * wall-mounted briefing panel in a physical room.
  *
- * FreeCamera (via UniversalCamera) is required for WebXR rig compatibility.
- * ArcRotateCamera cannot be the scene camera in immersive XR mode.
+ * Easing: QuarticEase. Quartic produces a more deliberate, weighted motion than
+ * Cubic — the camera feels like it has momentum and settles with authority.
+ * Duration 950ms — longer than typical web transitions, shorter than film cuts.
+ * Premium immersive work moves slower than you expect.
+ *
+ * FOV 0.92 rad (~53°) — tighter than default 1.0. Creates a subtle telephoto
+ * compression that makes the space feel composed and intentional.
  */
 
 export interface CameraRig {
   camera: UniversalCamera;
-  /** Animate gaze to a world-space target. Camera position never moves. */
   animateTo(target: Vector3, durationMs?: number): void;
   dispose(): void;
 }
 
-// Default gaze target — centered on the primary slate
-export const CAMERA_INITIAL_TARGET = [0, 1.7, -4.2] as const;
+// Slate is at (-1.4, 1.65, -5.0) — initial gaze points there
+export const SLATE_GAZE_TARGET = [-1.4, 1.65, -5.0] as const;
 
 export async function createCameraRig(scene: Scene): Promise<CameraRig> {
   const { UniversalCamera } = await import("@babylonjs/core/Cameras/universalCamera");
   const { Vector3 } = await import("@babylonjs/core/Maths/math.vector");
   const { Animation } = await import("@babylonjs/core/Animations/animation");
-  const { CubicEase, EasingFunction } = await import("@babylonjs/core/Animations/easing");
+  const { QuarticEase, EasingFunction } = await import("@babylonjs/core/Animations/easing");
 
   const camera = new UniversalCamera("mainCamera", new Vector3(0, 1.6, 0), scene);
-  camera.setTarget(new Vector3(0, 1.7, -4.2));
+  camera.setTarget(new Vector3(...SLATE_GAZE_TARGET));
 
-  // Sensitivity tuned for comfortable 360 browsing — not too responsive
-  camera.angularSensibility = 3500;
-  camera.speed = 0;       // no locomotion in a kiosk experience
+  camera.angularSensibility = 4000; // deliberate look-around, not twitchy
+  camera.speed = 0;
   camera.minZ = 0.1;
   camera.maxZ = 200;
-  camera.fov = 1.0;       // ~57° — slightly narrower for a more intimate, premium feel
+  camera.fov = 0.92; // ~53° — slight telephoto compression, feels premium
 
-  const animateTo = (targetLookAt: Vector3, durationMs = 700): void => {
+  const animateTo = (targetLookAt: Vector3, durationMs = 950): void => {
     const fps = 60;
     const frames = Math.round((durationMs / 1000) * fps);
 
-    const ease = new CubicEase();
+    const ease = new QuarticEase();
     ease.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
 
-    const targetAnim = new Animation(
+    const anim = new Animation(
       "camTarget",
       "target",
       fps,
       Animation.ANIMATIONTYPE_VECTOR3,
       Animation.ANIMATIONLOOPMODE_CONSTANT
     );
-    targetAnim.setKeys([
+    anim.setKeys([
       { frame: 0, value: camera.target.clone() },
       { frame: frames, value: targetLookAt },
     ]);
-    targetAnim.setEasingFunction(ease);
+    anim.setEasingFunction(ease);
 
     scene.stopAnimation(camera);
-    scene.beginDirectAnimation(camera, [targetAnim], 0, frames, false);
+    scene.beginDirectAnimation(camera, [anim], 0, frames, false);
   };
 
   return {

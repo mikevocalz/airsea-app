@@ -3,41 +3,24 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { BRAND, hexToFloat3 } from "@/lib/brand/tokens";
 
 /**
- * ─── Environment — AirSea Brand Atmosphere ───────────────────────────────────
+ * ─── Environment — Architectural Chamber ─────────────────────────────────────
  *
- * The environment establishes the brand register before a single word is read.
- * It must say: precision, restraint, white-glove professionalism.
+ * Design principle: the environment is a room, not a void.
+ * It defines space without competing with content.
  *
- * Three elements:
+ * Three layers:
+ *   1. Floor — dark architectural plane, no grid.
+ *      GridMaterial reads as "Babylon demo." A matte dark plane reads as space.
+ *   2. Fog — brand-tinted, tighter than before. Makes the 360 sphere feel like
+ *      atmosphere, not a texture wrapping a ball.
+ *   3. Distant walls — barely-there geometry (alpha ~0.3) at far Z and sides.
+ *      These define a room without announcing themselves. The 360 video is still
+ *      the dominant environment; the walls are spatial grammar, not decoration.
  *
- * 1. Floor
- *    Dark architectural plane — almost-black with a blue-charcoal tint that
- *    matches the brand background. Grid lines derived from the brand border
- *    color (#252B32) at 40% opacity. The grid is structural, not decorative —
- *    it gives the space depth and scale without creating visual noise.
- *
- *    GridMaterial chosen because it communicates "precision operations facility"
- *    which is exactly what AirSea is. Avoid stone/marble/wood — those read
- *    domestic. This should feel operational and premium simultaneously.
- *
- * 2. Scene fog
- *    Exponential fog starting at medium range softens the 360 sphere horizon.
- *    The fog color is the brand background (#0B0D10) — it makes distant
- *    geometry fade into the environment naturally. No "wall" visible.
- *
- * 3. Origin marker ring
- *    A very thin floor-level torus gives the user a spatial anchor point.
- *    Color: brand teal at very low opacity — present but not assertive.
- *    This is the only use of teal in the environment itself. Everything else
- *    is neutral, keeping the brand accent reserved for UI and content.
- *
- * Scene clear color: BRAND.bg (#0B0D10) — the brand's darkest background tone.
- *
- * Anti-pattern avoided:
- *    No reflective chrome floor. No glowing grid lines. No neon rings.
- *    No ambient teal particle wash. These would make the experience look
- *    like a generic sci-fi demo or a gaming environment — both fatal to
- *    the AirSea brand register.
+ * What was removed and why:
+ *   - GridMaterial: tutorial artifact, not premium
+ *   - Torus ring: generic sci-fi, no brand relevance
+ *   - Everything decorative that didn't serve the spatial narrative
  */
 
 export interface EnvironmentLayer {
@@ -47,66 +30,69 @@ export interface EnvironmentLayer {
 
 export async function createEnvironment(scene: Scene): Promise<EnvironmentLayer> {
   const { MeshBuilder } = await import("@babylonjs/core/Meshes/meshBuilder");
-  const { GridMaterial } = await import("@babylonjs/materials/grid/gridMaterial");
+  const { StandardMaterial } = await import("@babylonjs/core/Materials/standardMaterial");
   const { Color3, Color4 } = await import("@babylonjs/core/Maths/math.color");
   const { Vector3 } = await import("@babylonjs/core/Maths/math.vector");
-  const { StandardMaterial } = await import("@babylonjs/core/Materials/standardMaterial");
   const { Scene: BabScene } = await import("@babylonjs/core/scene");
+  const { hexToFloat3: h3 } = await import("@/lib/brand/tokens");
 
-  // ── Scene clear = brand background ──────────────────────────────────────
-  const [br, bg, bb] = hexToFloat3(BRAND.bg);
+  const [br, bg, bb] = h3(BRAND.bg);
+  const [er, eg, eb] = h3(BRAND.bgElevated);
+
+  // ── Scene clear ────────────────────────────────────────────────────────────
   scene.clearColor = new Color4(br, bg, bb, 1);
 
-  // ── Fog — brand bg color, exponential ────────────────────────────────────
+  // ── Fog — tighter, atmospheric ─────────────────────────────────────────────
+  // Density 0.018 ensures far geometry (Z>12) fades into the brand background.
+  // This makes the 360 sphere read as atmosphere rather than "texture on a ball."
   scene.fogMode = BabScene.FOGMODE_EXP2;
   scene.fogColor = new Color3(br, bg, bb);
-  scene.fogDensity = 0.010;
+  scene.fogDensity = 0.018;
 
-  // ── Floor ────────────────────────────────────────────────────────────────
+  // ── Floor — dark architectural plane ──────────────────────────────────────
+  // No grid. Matte dark surface with a barely-perceptible lighter seam at the
+  // edges to define ground plane without drawing attention to it.
   const floor = MeshBuilder.CreateGround(
     "envFloor",
-    { width: 40, height: 40, subdivisions: 2 },
+    { width: 60, height: 60, subdivisions: 1 },
     scene
   );
-  floor.position.y = -0.02;
+  floor.position.y = -0.01;
+  floor.isPickable = false;
 
-  const [mr, mg, mb] = hexToFloat3(BRAND.bgElevated);
-  const [lr, lgc, lbc] = hexToFloat3(BRAND.border);
+  const floorMat = new StandardMaterial("floorMat", scene);
+  floorMat.diffuseColor = new Color3(er * 0.6, eg * 0.6, eb * 0.6);
+  floorMat.specularColor = new Color3(0.03, 0.04, 0.05); // barely-there reflection
+  floorMat.ambientColor = new Color3(er * 0.3, eg * 0.3, eb * 0.3);
+  floorMat.alpha = 0.92;
+  floor.material = floorMat;
 
-  const gridMat = new GridMaterial("floorGrid", scene);
-  gridMat.majorUnitFrequency = 5;
-  gridMat.minorUnitVisibility = 0.18;
-  gridMat.gridRatio = 1;
-  gridMat.backFaceCulling = false;
-  gridMat.mainColor = new Color3(mr, mg, mb);
-  gridMat.lineColor = new Color3(lr, lgc, lbc);
-  gridMat.opacity = 0.55;
-  floor.material = gridMat;
-
-  // ── Origin marker ring — brand teal, very restrained ─────────────────────
-  const ring = MeshBuilder.CreateTorus(
-    "originRing",
-    { diameter: 2.4, thickness: 0.018, tessellation: 64 },
+  // ── Back wall — architectural depth anchor ─────────────────────────────────
+  // Very dark, nearly invisible. Its purpose is spatial: it tells the user
+  // "the room ends here" so the 360 video reads as windows beyond the space,
+  // not as the room itself. Alpha 0.28 — present but not dominant.
+  const backWall = MeshBuilder.CreatePlane(
+    "backWall",
+    { width: 22, height: 6 },
     scene
   );
-  ring.position.y = 0.005;
+  backWall.position = new Vector3(0, 2.0, -11.0);
+  backWall.isPickable = false;
 
-  const [tr, tg, tb] = hexToFloat3(BRAND.teal);
-  const ringMat = new StandardMaterial("originRingMat", scene);
-  ringMat.emissiveColor = new Color3(tr, tg, tb);
-  ringMat.disableLighting = true;
-  ringMat.alpha = 0.22; // present but barely — restrained brand usage
+  const backWallMat = new StandardMaterial("backWallMat", scene);
+  backWallMat.diffuseColor = new Color3(er * 0.5, eg * 0.5, eb * 0.5);
+  backWallMat.emissiveColor = new Color3(er * 0.12, eg * 0.12, eb * 0.12);
+  backWallMat.disableLighting = true;
+  backWallMat.backFaceCulling = false;
+  backWallMat.alpha = 0.28;
+  backWall.material = backWallMat;
 
-  ring.material = ringMat;
-  ring.isPickable = false;
+  const disposables = [floor, backWall, floorMat, backWallMat];
 
   return {
     floor,
     dispose() {
-      gridMat.dispose();
-      ringMat.dispose();
-      floor.dispose();
-      ring.dispose();
+      for (const d of disposables) d.dispose();
     },
   };
 }
