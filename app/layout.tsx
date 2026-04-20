@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AirSea — Spatial Logistics Experience",
+  title: "AirSea Packing — White-Glove Logistics",
   description:
-    "White-glove delivery, fine art handling, and premium logistics. Enter the AirSea spatial experience.",
+    "Premium white-glove delivery, fine art handling, storage, and logistics across New York and Los Angeles. Explore the immersive 360° spatial experience.",
 };
 
 export default function RootLayout({
