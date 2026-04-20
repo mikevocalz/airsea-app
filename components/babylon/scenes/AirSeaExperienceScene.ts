@@ -2,7 +2,7 @@ import type { Engine } from "@babylonjs/core/Engines/engine";
 import type { Scene } from "@babylonjs/core/scene";
 import type { SectionId } from "@/types/experience";
 
-import { AIRSEA_SECTIONS, DEFAULT_VIDEO_ID, PRIMARY_NAV_IDS } from "@/content/airsea";
+import { AIRSEA_SECTIONS, PRIMARY_NAV_IDS } from "@/content/airsea";
 import { useAirSeaExperienceStore } from "@/store/useAirSeaExperienceStore";
 
 /**
@@ -55,10 +55,6 @@ export async function createAirSeaExperienceScene(
   );
   const logoBrandPlaque = await createLogoBrandPlaque(scene);
 
-  const { createMuxVideoSphere } = await import("@/components/babylon/video/createMuxVideoSphere");
-  const videoSphere = await createMuxVideoSphere(scene, DEFAULT_VIDEO_ID);
-  videoSphere.play();
-
   const { createPrimaryHolographicSlate } = await import(
     "@/components/babylon/gui/createPrimaryHolographicSlate"
   );
@@ -92,19 +88,6 @@ export async function createAirSeaExperienceScene(
     }
   );
 
-  const unsubPlaying = store.subscribe(
-    (s) => s.isPlaying,
-    (playing) => {
-      if (playing) videoSphere.play();
-      else videoSphere.pause();
-    }
-  );
-
-  const unsubMuted = store.subscribe(
-    (s) => s.isMuted,
-    (muted) => videoSphere.setMuted(muted)
-  );
-
   if (navigator.xr) {
     navigator.xr
       .isSessionSupported("immersive-vr")
@@ -118,12 +101,9 @@ export async function createAirSeaExperienceScene(
     scene,
     dispose() {
       unsubSection();
-      unsubPlaying();
-      unsubMuted();
 
       serviceCluster.dispose();
       primarySlate.dispose();
-      videoSphere.dispose();
       logoBrandPlaque.dispose();
       environment.dispose();
       lightingRig.dispose();

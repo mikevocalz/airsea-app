@@ -40,11 +40,6 @@ function ExperienceLoader() {
 function ExperienceHUD() {
   const sceneReady = useAirSeaExperienceStore((s) => s.sceneReady);
   const xrSupported = useAirSeaExperienceStore((s) => s.xrSupported);
-  const isPlaying = useAirSeaExperienceStore((s) => s.isPlaying);
-  const isMuted = useAirSeaExperienceStore((s) => s.isMuted);
-  const setIsPlaying = useAirSeaExperienceStore((s) => s.setIsPlaying);
-  const toggleMute = useAirSeaExperienceStore((s) => s.toggleMute);
-
   const fade: React.CSSProperties = {
     opacity: sceneReady ? 1 : 0,
     transition: "opacity 1.6s ease",
@@ -57,17 +52,6 @@ function ExperienceHUD() {
     textTransform: "uppercase",
     fontFamily: "Helvetica Neue, Arial, sans-serif",
     transition: "color 0.2s",
-  });
-
-  const ctrlBtn = (active = false): React.CSSProperties => ({
-    color: active ? BRAND.teal : BRAND.textDim,
-    fontSize: "13px",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    padding: "6px 10px",
-    transition: "color 0.2s",
-    lineHeight: 1,
   });
 
   return (
@@ -124,35 +108,6 @@ function ExperienceHUD() {
         >
           ← Exit
         </Link>
-      </div>
-
-      {/* ── Bottom-left: transport controls (DOM, not 3D) ───────────────── */}
-      {/* Play/pause and mute live in the DOM. They are utility controls —  */}
-      {/* putting them in 3D space wastes spatial real estate on non-spatial  */}
-      {/* concerns. DOM placement keeps the 3D scene editorially clean.       */}
-      <div
-        className="absolute bottom-7 left-7 z-10 flex items-center gap-1"
-        style={{
-          opacity: sceneReady ? 0.7 : 0,
-          transition: "opacity 2s ease 1s",
-        }}
-        onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.opacity = "0.7")}
-      >
-        <button
-          style={ctrlBtn(isPlaying)}
-          onClick={() => setIsPlaying(!isPlaying)}
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-        <button
-          style={ctrlBtn(!isMuted)}
-          onClick={toggleMute}
-          aria-label={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? "🔇" : "🔊"}
-        </button>
       </div>
 
       {/* ── Bottom-center: mode tabs ────────────────────────────────────── */}
