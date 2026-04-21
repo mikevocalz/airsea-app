@@ -27,8 +27,9 @@ export async function createVideoGalleryScene(
   scene.fogColor = new Color3(0.043, 0.051, 0.063);
 
   // Locked camera — gallery is not draggable, cards handle navigation
+  // Camera faces +Z so plane front faces (normal -Z) face the camera — no UV hacks needed.
   const camera = new UniversalCamera("galleryCam", new Vector3(0, 1.6, 0), scene);
-  camera.setTarget(new Vector3(0, 1.6, -4.8));
+  camera.setTarget(new Vector3(0, 1.6, 4.8));
   camera.minZ = 0.1;
   camera.maxZ = 60;
   scene.activeCamera = camera;

@@ -17,7 +17,9 @@ const CARD_W = 1.25;
 const CARD_H = 0.703;
 const COL_X  = [-1.55, 0, 1.55] as const;
 const ROW_Y  = [2.15, 1.17] as const;
-const Z      = -4.8;
+// Cards sit at +Z so the camera (at z=0, facing +Z) sees the plane front faces
+// (default normal -Z) straight on — no rotation or UV flip needed.
+const Z      = 4.8;
 
 export interface GalleryCards {
   dispose(): void;
@@ -58,22 +60,13 @@ export async function createGalleryCards(
     const bgMesh = MeshBuilder.CreatePlane(`card_bg_${video.id}`, {
       width: CARD_W, height: CARD_H,
     }, scene);
-    bgMesh.position   = new Vector3(x, y, Z);
-    // CreatePlane normal is -Z; camera looks in -Z so back face is visible (mirrored).
-    // Rotate 180° around Y → normal becomes +Z (front face toward camera).
-    // Then bake a U-flip into the geometry to cancel the mirror the rotation introduces.
-    bgMesh.rotation.y = Math.PI;
-    const bgUVs = bgMesh.getVerticesData("uv");
-    if (bgUVs) {
-      for (let j = 0; j < bgUVs.length; j += 2) bgUVs[j] = 1 - bgUVs[j];
-      bgMesh.setVerticesData("uv", bgUVs);
-    }
+    bgMesh.position = new Vector3(x, y, Z);
 
     const mat = new StandardMaterial(`mat_${video.id}`, scene);
     mat.disableLighting = true;
 
     if (!video.comingSoon && video.playbackId) {
-      const thumbUrl = `https://image.mux.com/${video.playbackId}/thumbnail.jpg?time=5&width=1280`;
+      const thumbUrl = `https://image.mux.com/${video.playbackId}/thumbnail.png?width=214&height=121&time=${video.thumbnailTime ?? 15}`;
       const tex = new Texture(thumbUrl, scene, false, true, Texture.TRILINEAR_SAMPLINGMODE);
       mat.emissiveTexture = tex;
       mat.emissiveColor   = Color3.White();
@@ -110,16 +103,9 @@ export async function createGalleryCards(
     const textMesh = MeshBuilder.CreatePlane(`card_text_${video.id}`, {
       width: CARD_W, height: CARD_H,
     }, scene);
-    // Z + 0.004 = -4.796 — closer to camera than bgMesh at -4.8
-    textMesh.position   = new Vector3(x, y, Z + 0.004);
-    textMesh.rotation.y = Math.PI;
+    // Z - 0.004 = 4.796 — closer to camera (smaller +Z) than bgMesh at 4.8
+    textMesh.position   = new Vector3(x, y, Z - 0.004);
     textMesh.isPickable = false;
-    // Same geometry U-flip as bgMesh so the ADT content isn't mirrored
-    const txUVs = textMesh.getVerticesData("uv");
-    if (txUVs) {
-      for (let j = 0; j < txUVs.length; j += 2) txUVs[j] = 1 - txUVs[j];
-      textMesh.setVerticesData("uv", txUVs);
-    }
 
     // 1280 × 720 ADT — text sizes are 2× relative to old 640×360, matching
     // the same on-screen pixel size but with 2× the sharpness

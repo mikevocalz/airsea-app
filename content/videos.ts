@@ -15,6 +15,7 @@ export interface AirSeaVideo {
   duration?: string;
   sortOrder: number;
   comingSoon?: boolean;
+  thumbnailTime?: number;
 }
 
 export const AIRSEA_VIDEOS: AirSeaVideo[] = [
@@ -27,6 +28,7 @@ export const AIRSEA_VIDEOS: AirSeaVideo[] = [
     is360: true,
     category: "Operations",
     sortOrder: 0,
+    thumbnailTime: 69,
   },
   {
     id: "kevorn-devon",
