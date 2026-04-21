@@ -3,22 +3,18 @@ import type { AirSeaVideo } from "@/content/videos";
 import { BRAND } from "@/lib/brand/tokens";
 
 /**
- * Two-plane card design per video:
- *   bgMesh   — StandardMaterial + Mux Texture (thumbnail or dark bg)
- *   textMesh — non-pickable ADT overlay 4mm in front (1280×720, font sizes 2×)
+ * Single-plane card per video.
+ * ADT handles both thumbnail (GuiImage, stretch=UNIFORM_TO_FILL) and text.
+ * Action manager lives on the same mesh — no second plane to block picks.
  *
- * Layout: 3 cols × 2 rows at Z = -4.8
- *   Card: 1.25 × 0.703 world units (16:9)
- *   Col X:  -1.55 | 0 | +1.55
- *   Row Y:   2.15 | 1.17
+ * Layout: 3 cols × 2 rows at Z = +4.8
+ *   Camera at z=0 faces +Z → plane front faces (normal -Z) face the camera.
  */
 
 const CARD_W = 1.25;
 const CARD_H = 0.703;
 const COL_X  = [-1.55, 0, 1.55] as const;
 const ROW_Y  = [2.15, 1.17] as const;
-// Cards sit at +Z so the camera (at z=0, facing +Z) sees the plane front faces
-// (default normal -Z) straight on — no rotation or UV flip needed.
 const Z      = 4.8;
 
 export interface GalleryCards {
@@ -30,17 +26,16 @@ export async function createGalleryCards(
   videos: AirSeaVideo[],
   onSelect: (videoId: string) => void
 ): Promise<GalleryCards> {
-  const { MeshBuilder }        = await import("@babylonjs/core/Meshes/meshBuilder");
-  const { Color3 }             = await import("@babylonjs/core/Maths/math.color");
-  const { Vector3 }            = await import("@babylonjs/core/Maths/math.vector");
-  const { StandardMaterial }   = await import("@babylonjs/core/Materials/standardMaterial");
-  const { Texture }            = await import("@babylonjs/core/Materials/Textures/texture");
-  const { ActionManager }      = await import("@babylonjs/core/Actions/actionManager");
-  const { ExecuteCodeAction }  = await import("@babylonjs/core/Actions/directActions");
+  const { MeshBuilder }       = await import("@babylonjs/core/Meshes/meshBuilder");
+  const { Color3 }            = await import("@babylonjs/core/Maths/math.color");
+  const { Vector3 }           = await import("@babylonjs/core/Maths/math.vector");
+  const { ActionManager }     = await import("@babylonjs/core/Actions/actionManager");
+  const { ExecuteCodeAction } = await import("@babylonjs/core/Actions/directActions");
   const { AdvancedDynamicTexture } = await import("@babylonjs/gui/2D/advancedDynamicTexture");
-  const { Rectangle }          = await import("@babylonjs/gui/2D/controls/rectangle");
-  const { TextBlock }          = await import("@babylonjs/gui/2D/controls/textBlock");
-  const { Control }            = await import("@babylonjs/gui/2D/controls/control");
+  const { Rectangle }         = await import("@babylonjs/gui/2D/controls/rectangle");
+  const { TextBlock }         = await import("@babylonjs/gui/2D/controls/textBlock");
+  const { Control }           = await import("@babylonjs/gui/2D/controls/control");
+  const { Image: GuiImage }   = await import("@babylonjs/gui/2D/controls/image");
   await import("@babylonjs/core/Rendering/outlineRenderer");
 
   const tealColor = Color3.FromHexString(BRAND.teal);
@@ -56,62 +51,33 @@ export async function createGalleryCards(
       ? ROW_Y[row]
       : ROW_Y[ROW_Y.length - 1] - (row - ROW_Y.length + 1) * (CARD_H + 0.25);
 
-    // ── Background: Mux thumbnail via StandardMaterial ─────────────────
-    const bgMesh = MeshBuilder.CreatePlane(`card_bg_${video.id}`, {
+    const mesh = MeshBuilder.CreatePlane(`card_${video.id}`, {
       width: CARD_W, height: CARD_H,
     }, scene);
-    bgMesh.position = new Vector3(x, y, Z);
+    mesh.position = new Vector3(x, y, Z);
 
-    const mat = new StandardMaterial(`mat_${video.id}`, scene);
-    mat.disableLighting = true;
+    // 1280×720 gives 2× pixel density vs the old 640×360 — text renders crisply
+    const adt = AdvancedDynamicTexture.CreateForMesh(mesh, 1280, 720, false);
 
+    // ── Dark base ──────────────────────────────────────────────────────
+    const bg = new Rectangle(`bg_${video.id}`);
+    bg.width      = "100%";
+    bg.height     = "100%";
+    bg.background = "#0C1018";
+    bg.thickness  = 0;
+    adt.addControl(bg);
+
+    // ── Thumbnail ──────────────────────────────────────────────────────
     if (!video.comingSoon && video.playbackId) {
       const thumbUrl = `https://image.mux.com/${video.playbackId}/thumbnail.png?width=214&height=121&time=${video.thumbnailTime ?? 15}`;
-      const tex = new Texture(thumbUrl, scene, false, true, Texture.TRILINEAR_SAMPLINGMODE);
-      mat.emissiveTexture = tex;
-      mat.emissiveColor   = Color3.White();
-      disposables.push(tex);
-
-      bgMesh.outlineColor  = tealColor;
-      bgMesh.outlineWidth  = 0.03;
-      bgMesh.renderOutline = false;
-
-      bgMesh.actionManager = new ActionManager(scene);
-      bgMesh.actionManager.registerAction(
-        new ExecuteCodeAction(ActionManager.OnPointerOverTrigger, () => {
-          bgMesh.renderOutline = true;
-          mat.emissiveColor    = new Color3(1.22, 1.22, 1.22);
-        })
-      );
-      bgMesh.actionManager.registerAction(
-        new ExecuteCodeAction(ActionManager.OnPointerOutTrigger, () => {
-          bgMesh.renderOutline = false;
-          mat.emissiveColor    = Color3.White();
-        })
-      );
-      bgMesh.actionManager.registerAction(
-        new ExecuteCodeAction(ActionManager.OnPickTrigger, () => onSelect(video.id))
-      );
-    } else {
-      mat.emissiveColor = Color3.FromHexString("#0C1018");
+      const thumb = new GuiImage(`thumb_${video.id}`, thumbUrl);
+      thumb.width   = "100%";
+      thumb.height  = "100%";
+      thumb.stretch = 3; // STRETCH_UNIFORM_TO_FILL
+      adt.addControl(thumb);
     }
 
-    bgMesh.material = mat;
-    disposables.push(mat);
-
-    // ── Text overlay: non-pickable ADT plane 4mm in front ──────────────
-    const textMesh = MeshBuilder.CreatePlane(`card_text_${video.id}`, {
-      width: CARD_W, height: CARD_H,
-    }, scene);
-    // Z - 0.004 = 4.796 — closer to camera (smaller +Z) than bgMesh at 4.8
-    textMesh.position   = new Vector3(x, y, Z - 0.004);
-    textMesh.isPickable = false;
-
-    // 1280 × 720 ADT — text sizes are 2× relative to old 640×360, matching
-    // the same on-screen pixel size but with 2× the sharpness
-    const adt = AdvancedDynamicTexture.CreateForMesh(textMesh, 1280, 720, false);
-
-    // Top gradient scrim — dark area for category label readability
+    // ── Top scrim (category label readability) ─────────────────────────
     const topScrim = new Rectangle(`topScrim_${video.id}`);
     topScrim.width  = "100%";
     topScrim.height = "22%";
@@ -120,7 +86,7 @@ export async function createGalleryCards(
     topScrim.thickness  = 0;
     adt.addControl(topScrim);
 
-    // Bottom scrim — two stacked rects approximate a linear gradient
+    // ── Bottom scrim — two rects approximate a gradient ────────────────
     const scrimHeavy = new Rectangle(`scrimH_${video.id}`);
     scrimHeavy.width  = "100%";
     scrimHeavy.height = "42%";
@@ -138,7 +104,7 @@ export async function createGalleryCards(
     scrimMid.thickness  = 0;
     adt.addControl(scrimMid);
 
-    // Teal accent bar at top edge
+    // ── Teal accent line ───────────────────────────────────────────────
     const topBar = new Rectangle(`topBar_${video.id}`);
     topBar.width  = "100%";
     topBar.height = "4px";
@@ -147,7 +113,7 @@ export async function createGalleryCards(
     topBar.thickness  = 0;
     adt.addControl(topBar);
 
-    // Category label — top-left
+    // ── Category — top-left ────────────────────────────────────────────
     const catLabel = new TextBlock(`cat_${video.id}`, video.category.toUpperCase());
     catLabel.color      = BRAND.teal;
     catLabel.fontSize   = 24;
@@ -162,7 +128,7 @@ export async function createGalleryCards(
     catLabel.width  = "72%";
     adt.addControl(catLabel);
 
-    // Title — bottom-left (large serif)
+    // ── Title — bottom-left ────────────────────────────────────────────
     const titleLabel = new TextBlock(`title_${video.id}`, video.title);
     titleLabel.color      = BRAND.textPrimary;
     titleLabel.fontSize   = 52;
@@ -179,7 +145,7 @@ export async function createGalleryCards(
     titleLabel.width  = "100%";
     adt.addControl(titleLabel);
 
-    // Description — above title
+    // ── Description — above title ──────────────────────────────────────
     const descLabel = new TextBlock(`desc_${video.id}`, video.description);
     descLabel.color      = BRAND.textSecondary;
     descLabel.fontSize   = 28;
@@ -196,7 +162,7 @@ export async function createGalleryCards(
     adt.addControl(descLabel);
 
     if (!video.comingSoon) {
-      // "360°" badge — top-right
+      // ── 360° badge — top-right ─────────────────────────────────────
       const badge = new TextBlock(`badge_${video.id}`, "360°");
       badge.color      = BRAND.teal;
       badge.fontSize   = 24;
@@ -210,8 +176,28 @@ export async function createGalleryCards(
       badge.height = "56px";
       badge.width  = "28%";
       adt.addControl(badge);
+
+      // ── Hover outline + pick ───────────────────────────────────────
+      mesh.outlineColor  = tealColor;
+      mesh.outlineWidth  = 0.03;
+      mesh.renderOutline = false;
+
+      mesh.actionManager = new ActionManager(scene);
+      mesh.actionManager.registerAction(
+        new ExecuteCodeAction(ActionManager.OnPointerOverTrigger, () => {
+          mesh.renderOutline = true;
+        })
+      );
+      mesh.actionManager.registerAction(
+        new ExecuteCodeAction(ActionManager.OnPointerOutTrigger, () => {
+          mesh.renderOutline = false;
+        })
+      );
+      mesh.actionManager.registerAction(
+        new ExecuteCodeAction(ActionManager.OnPickTrigger, () => onSelect(video.id))
+      );
     } else {
-      // Coming-soon: dim entire card + centered label
+      // ── Coming-soon overlay ────────────────────────────────────────
       const dimRect = new Rectangle(`dim_${video.id}`);
       dimRect.width      = "100%";
       dimRect.height     = "100%";
@@ -227,7 +213,7 @@ export async function createGalleryCards(
     }
 
     disposables.push(adt);
-    disposables.push({ dispose: () => { bgMesh.dispose(); textMesh.dispose(); } });
+    disposables.push({ dispose: () => mesh.dispose() });
   }
 
   return {
