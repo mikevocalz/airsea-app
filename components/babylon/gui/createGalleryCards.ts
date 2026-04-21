@@ -59,9 +59,15 @@ export async function createGalleryCards(
       width: CARD_W, height: CARD_H,
     }, scene);
     bgMesh.position   = new Vector3(x, y, Z);
-    // CreatePlane normal is -Z; camera looks in -Z so we see the back face (mirrored).
-    // Rotate 180° around Y to flip the normal to +Z (front face toward camera).
+    // CreatePlane normal is -Z; camera looks in -Z so back face is visible (mirrored).
+    // Rotate 180° around Y → normal becomes +Z (front face toward camera).
+    // Then bake a U-flip into the geometry to cancel the mirror the rotation introduces.
     bgMesh.rotation.y = Math.PI;
+    const bgUVs = bgMesh.getVerticesData("uv");
+    if (bgUVs) {
+      for (let j = 0; j < bgUVs.length; j += 2) bgUVs[j] = 1 - bgUVs[j];
+      bgMesh.setVerticesData("uv", bgUVs);
+    }
 
     const mat = new StandardMaterial(`mat_${video.id}`, scene);
     mat.disableLighting = true;
@@ -69,9 +75,6 @@ export async function createGalleryCards(
     if (!video.comingSoon && video.playbackId) {
       const thumbUrl = `https://image.mux.com/${video.playbackId}/thumbnail.jpg?time=5&width=1280`;
       const tex = new Texture(thumbUrl, scene, false, true, Texture.TRILINEAR_SAMPLINGMODE);
-      // rotation.y = π flips the mesh, which mirrors UV.u — counter-flip in the sampler
-      tex.uScale  = -1;
-      tex.uOffset =  1;
       mat.emissiveTexture = tex;
       mat.emissiveColor   = Color3.White();
       disposables.push(tex);
@@ -107,17 +110,20 @@ export async function createGalleryCards(
     const textMesh = MeshBuilder.CreatePlane(`card_text_${video.id}`, {
       width: CARD_W, height: CARD_H,
     }, scene);
-    // Z + 0.004 = -4.796 — closer to camera than bgMesh at -4.8 (same -Z convention)
+    // Z + 0.004 = -4.796 — closer to camera than bgMesh at -4.8
     textMesh.position   = new Vector3(x, y, Z + 0.004);
     textMesh.rotation.y = Math.PI;
     textMesh.isPickable = false;
+    // Same geometry U-flip as bgMesh so the ADT content isn't mirrored
+    const txUVs = textMesh.getVerticesData("uv");
+    if (txUVs) {
+      for (let j = 0; j < txUVs.length; j += 2) txUVs[j] = 1 - txUVs[j];
+      textMesh.setVerticesData("uv", txUVs);
+    }
 
     // 1280 × 720 ADT — text sizes are 2× relative to old 640×360, matching
     // the same on-screen pixel size but with 2× the sharpness
     const adt = AdvancedDynamicTexture.CreateForMesh(textMesh, 1280, 720, false);
-    // Same UV counter-flip as bgMesh to cancel the rotation.y = π mirror
-    adt.uScale  = -1;
-    adt.uOffset =  1;
 
     // Top gradient scrim — dark area for category label readability
     const topScrim = new Rectangle(`topScrim_${video.id}`);
