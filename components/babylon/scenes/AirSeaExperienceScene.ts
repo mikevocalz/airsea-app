@@ -88,11 +88,28 @@ export async function createAirSeaExperienceScene(
     }
   );
 
-  if (navigator.xr) {
-    navigator.xr
-      .isSessionSupported("immersive-vr")
-      .then((supported) => useAirSeaExperienceStore.getState().setXrSupported(supported))
-      .catch(() => {});
+  let xrDispose: (() => void) | null = null;
+  try {
+    const { WebXRDefaultExperience } = await import(
+      "@babylonjs/core/XR/webXRDefaultExperience"
+    );
+    const xrExp = await WebXRDefaultExperience.CreateAsync(scene, {
+      disableDefaultUI: true,
+      uiOptions: { sessionMode: "immersive-vr" },
+      optionalFeatures: true,
+    });
+    if (xrExp.baseExperience) {
+      const supported = await xrExp.baseExperience.sessionManager.isSessionSupportedAsync("immersive-vr");
+      useAirSeaExperienceStore.getState().setXrSupported(supported);
+      if (supported) {
+        useAirSeaExperienceStore.getState().setXrEnter(async () => {
+          await xrExp.baseExperience.enterXRAsync("immersive-vr", "local-floor");
+        });
+        xrDispose = () => xrExp.dispose();
+      }
+    }
+  } catch {
+    // WebXR unavailable — silently skip
   }
 
   useAirSeaExperienceStore.getState().setSceneReady(true);
@@ -101,6 +118,7 @@ export async function createAirSeaExperienceScene(
     scene,
     dispose() {
       unsubSection();
+      xrDispose?.();
 
       serviceCluster.dispose();
       primarySlate.dispose();
@@ -110,6 +128,8 @@ export async function createAirSeaExperienceScene(
       cameraRig.dispose();
       gui3d.dispose();
 
+      useAirSeaExperienceStore.getState().setXrEnter(null);
+      useAirSeaExperienceStore.getState().setXrSupported(false);
       useAirSeaExperienceStore.getState().setSceneReady(false);
       useAirSeaExperienceStore.getState().setIsPlaying(false);
     },

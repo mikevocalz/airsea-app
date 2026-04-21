@@ -30,6 +30,7 @@ interface AirSeaExperienceState {
   // XR
   xrSupported: boolean;
   xrActive: boolean;
+  xrEnter: (() => Promise<void>) | null;
 }
 
 // ─── Actions Shape ────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ interface AirSeaExperienceActions {
 
   setXrSupported(supported: boolean): void;
   setXrActive(active: boolean): void;
+  setXrEnter(fn: (() => Promise<void>) | null): void;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -81,6 +83,7 @@ export const useAirSeaExperienceStore = create<StoreState>()(
 
     xrSupported: false,
     xrActive: false,
+    xrEnter: null,
 
     // ── Actions ──────────────────────────────────────────────────────────────
     setActiveSection: (id) => set({ activeSection: id, activeSlatePage: 0 }),
@@ -102,6 +105,7 @@ export const useAirSeaExperienceStore = create<StoreState>()(
 
     setXrSupported: (supported) => set({ xrSupported: supported }),
     setXrActive: (active) => set({ xrActive: active }),
+    setXrEnter: (fn) => set({ xrEnter: fn }),
   }))
 );
 

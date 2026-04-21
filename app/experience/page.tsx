@@ -38,8 +38,9 @@ function ExperienceLoader() {
 }
 
 function ExperienceHUD() {
-  const sceneReady = useAirSeaExperienceStore((s) => s.sceneReady);
+  const sceneReady  = useAirSeaExperienceStore((s) => s.sceneReady);
   const xrSupported = useAirSeaExperienceStore((s) => s.xrSupported);
+  const xrEnter     = useAirSeaExperienceStore((s) => s.xrEnter);
   const fade: React.CSSProperties = {
     opacity: sceneReady ? 1 : 0,
     transition: "opacity 1.6s ease",
@@ -87,7 +88,7 @@ function ExperienceHUD() {
         {xrSupported && (
           <button
             style={{ ...navLinkStyle(false), background: "transparent", border: "none", cursor: "pointer" }}
-            onClick={() => console.info("[XR] Immersive VR requested")}
+            onClick={() => xrEnter?.()}
           >
             Enter XR
           </button>
